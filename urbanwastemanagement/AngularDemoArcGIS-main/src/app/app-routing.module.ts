@@ -3,18 +3,17 @@ import { NgModule } from '@angular/core';
 import { EsriMapComponent } from './pages/esri-map/esri-map.component';
 import { HomeComponent } from './pages/home/home.component';
 import { AuthGuard } from './pages/guards/auth.guard';
-import { RoleGuardService } from './pages/services/role-guard.service';
 import { LoginComponent } from './pages/login/login.component';
 import { RegisterComponent } from './pages/register/register.component';
 import { ProfileComponent } from './pages/profile/profile.component';
 
 
 export const routes: Routes = [
-  { path: 'home', component: HomeComponent },
-  { path: 'map', component: EsriMapComponent },
-  { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
   { path: 'login', component: LoginComponent },
   { path: 'register', component: RegisterComponent },
+  { path: 'home', component: HomeComponent, canActivate: [AuthGuard] },
+  { path: 'map', component: EsriMapComponent, canActivate: [AuthGuard] },
+  { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
   { path: '', redirectTo: '/login', pathMatch: 'full' },
   { path: '**', redirectTo: '/login' }
 ];

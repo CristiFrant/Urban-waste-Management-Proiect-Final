@@ -7,20 +7,22 @@ import {
   EventEmitter,
   OnDestroy
 } from "@angular/core";
+import { Router } from '@angular/router';
 
 import esri = __esri; // Esri TypeScript Types
 
-import Config from '@arcgis/core/config';
-import WebMap from '@arcgis/core/WebMap';
+import esriConfig from '@arcgis/core/config.js';
+import Map from "@arcgis/core/Map";
 import MapView from '@arcgis/core/views/MapView';
 import Bookmarks from '@arcgis/core/widgets/Bookmarks';
 import Expand from '@arcgis/core/widgets/Expand';
+import Locate from '@arcgis/core/widgets/Locate';
+import Search from '@arcgis/core/widgets/Search';
+import PopupTemplate from '@arcgis/core/PopupTemplate';
 
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import Graphic from '@arcgis/core/Graphic';
 import Point from '@arcgis/core/geometry/Point';
-
-import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 
 import FeatureSet from '@arcgis/core/rest/support/FeatureSet';
 import RouteParameters from '@arcgis/core/rest/support/RouteParameters';
@@ -33,10 +35,9 @@ import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import Color from "@arcgis/core/Color";
 import SimpleLineSymbol from "@arcgis/core/symbols/SimpleLineSymbol";
-import { FirebaseService, IDatabaseItem } from "src/app/pages/services/firebase";
+import { FirebaseService, IDatabaseItem, IReport } from "src/app/pages/services/firebase";
+import { AuthService } from "src/app/pages/services/auth.service";
 import { Subscription } from "rxjs/internal/Subscription";
-
-import Map from "@arcgis/core/Map";
 
 declare global {
   interface Window {
@@ -59,25 +60,43 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   graphicsLayer: esri.GraphicsLayer;
   graphicsLayerUserPoints: esri.GraphicsLayer;
   graphicsLayerRoutes: esri.GraphicsLayer;
-  trailheadsLayer: esri.FeatureLayer;
   isConnected: boolean = false;
   subscriptionList: Subscription;
   subscriptionObj: Subscription;
   recyclingPointsLayer: GraphicsLayer;
   routeLayer: GraphicsLayer;
   routeUrl: string = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
+  userLocation: Point | null = null;
+  locateWidget: __esri.Locate | null = null;
 
   zoom = 10;
   center: Array<number> = [26.1025, 44.4268];
-  basemap = "streets-vector";
+  basemap = "osm"; // OpenStreetMap - works without API key issues
   loaded = false;
   directionsElement: any;
 
   listItems: IDatabaseItem[] = [];
+  currentUser: any = null;
+  allReports: IReport[] = [];
 
   constructor(
     private fbs: FirebaseService,
-  ) { }
+    private router: Router,
+    private authService: AuthService
+  ) {
+    // Bind createRoute to window so it can be called from popup buttons
+    window.createRoute = this.createRoute.bind(this);
+    
+    // Get current user
+    this.authService.currentUser.subscribe(user => {
+      this.currentUser = user;
+    });
+
+    // Load all reports
+    this.fbs.getReports().subscribe(reports => {
+      this.allReports = reports;
+    });
+  }
 
   loadPuncteColectareFromFirebase(): void {
     this.fbs.getPuncteColectare().subscribe((items: any[]) => {
@@ -121,22 +140,31 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       
       this.connectFirebase();
       this.loadPuncteColectareFromFirebase();
+      // loadPointsFromFirebase removed - using only puncteColectare
       // this.view.on("click", (event) => this.addStopPoint(event.mapPoint));
     });
-    this.loadPointsFromFirebase();
   }
 
   async initializeMap() {
     try {
-      Config.apiKey = "AAPTxy8BH1VEsoebNVZXo8HurO77SV1CDDDBsZgT2NUYqzxMixXz5DaQO1kRtePK4MR1KR4vNlLi14IzxQG77s3kc-2Q68b45Xdn7HEJV83QpDCBapDW9oaXok7NpVIOO_0TlqWr2_zhrkP5mtQbLNn6dfOUOdD8R71bzE8NoDYGvLbH10qQi5CGfmJygJXoPFCmusxujewetar6nGDchXTYc4aogvDWnSCvg5pwrx65Rfeb1976Y5zyplR4tS-oPtHtAT1_SZZW2aH3";
+      // Set API key for routing and geocoding services using esriConfig
+      esriConfig.apiKey = "AAPTxy8BH1VEsoebNVZXo8HurKE-LqnQJv5ZftEj6_bxNtTexlR21IteoGBjFjP44s3sY6xwqlAlIMAp7e0ka10zmd754atJd4Y21ZFR1DvciipS8W62bmd6Zmuebow_nV7O3mCuXBmO9Df2cw5xZ3S2_USdf1H4DSdj42tj3yjVyz_8tY0-mQ0OlzqKMlEDUMWdA8N2p4jXTss4VHoWS-tjd2YEx__CbjJ6tAPYJIR4yWU.AT1_MwiabmZ1";
+      
+      // Configure request interceptors for better authentication
+      esriConfig.request.interceptors.push({
+        urls: ["https://route-api.arcgis.com", "https://geocode-api.arcgis.com"],
+        before: (params) => {
+          params.requestOptions.query = params.requestOptions.query || {};
+          params.requestOptions.query.token = esriConfig.apiKey;
+        }
+      });
   
-      const mapProperties: esri.WebMapProperties = {
+      // Use Map with OSM basemap (doesn't require API key but routing will use the API key)
+      this.map = new Map({
         basemap: this.basemap
-      };
-      this.map = new WebMap(mapProperties);
-  
-      this.connectFirebase();
-      this.addFeatureLayers();
+      });
+
+      // Create graphics layers AFTER map is created
       this.addGraphicsLayer();
   
       const mapViewProperties = {
@@ -144,36 +172,38 @@ export class EsriMapComponent implements OnInit, OnDestroy {
         center: this.center,
         zoom: this.zoom,
         map: this.map,
-        ui: { components: ["attribution"] }, // Eliminăm toate componentele implicite, păstrăm doar atributul
+        ui: { components: ["attribution"] },
       };
       this.view = new MapView(mapViewProperties);
   
+      // Wait for view to be ready
       await this.view.when();
-      console.log("ArcGIS map loaded");
+      console.log("ArcGIS map loaded successfully with OSM basemap");
   
       // Configurarea popup-ului
       if (this.view.popup.container instanceof HTMLElement) {
-        this.view.popup.container.style.maxHeight = "400px"; // Setează dimensiunea maximă a popup-ului
+        this.view.popup.container.style.maxHeight = "400px";
       }
-      this.view.popup.autoOpenEnabled = true; // Permite popup-urilor să se deschidă complet
+      this.view.popup.autoOpenEnabled = true;
   
+      // Add UI elements after view is ready
+      this.addFeatureLayers();
+      this.addLocationButton();
+      this.addSearchWidget();
       this.addRouting();
       this.filter();
+      
       return this.view;
     } catch (error) {
       console.error("Error loading the map: ", error);
-      alert("Error loading the map");
+      alert("Error loading the map: " + error.message);
     }
   }
 
   loadPointsFromFirebase(): void {
-    this.fbs.getChangeFeedList().subscribe((items: IDatabaseItem[]) => {
-      items.forEach((point) => {
-        if (point.lat && point.long) {
-          this.addPointToMap(point.lat, point.long, point.name, point.val);
-        }
-      });
-    });
+    // This method is deprecated - now using loadPuncteColectareFromFirebase() only
+    // which loads from the 'puncteColectare' path instead of 'list'
+    console.log('loadPointsFromFirebase is deprecated - using puncteColectare only');
   }
 
   addPointToMap(lat: number, long: number, name: string, description: string, details?: any): void {
@@ -228,6 +258,67 @@ export class EsriMapComponent implements OnInit, OnDestroy {
         <strong>Descriere:</strong> ${description}
       `;
       container.appendChild(detailsList);
+
+      // Reports section
+      const locationId = `${lat}_${long}`;
+      const locationReports = this.allReports.filter(r => r.locationId === locationId);
+      
+      if (locationReports.length > 0) {
+        const reportsSection = document.createElement("div");
+        reportsSection.className = "reports-section";
+        reportsSection.style.cssText = "margin-top: 15px; padding: 10px; background-color: #fff3cd; border-radius: 5px;";
+        
+        const reportsTitle = document.createElement("strong");
+        reportsTitle.innerText = `📢 Rapoarte (${locationReports.length})`;
+        reportsTitle.style.cssText = "display: block; margin-bottom: 10px; color: #856404;";
+        reportsSection.appendChild(reportsTitle);
+
+        locationReports.forEach(report => {
+          const reportItem = document.createElement("div");
+          reportItem.style.cssText = "margin-bottom: 10px; padding: 8px; background-color: white; border-left: 3px solid #ffc107; border-radius: 3px;";
+          
+          const reportHeader = document.createElement("div");
+          reportHeader.style.cssText = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;";
+          
+          const reportUser = document.createElement("small");
+          reportUser.innerText = `👤 ${report.userName} - ${new Date(report.timestamp).toLocaleString('ro-RO')}`;
+          reportUser.style.cssText = "color: #666; font-size: 11px;";
+          reportHeader.appendChild(reportUser);
+
+          // Delete button - only for report owner
+          if (this.currentUser && report.userEmail === this.currentUser.email) {
+            const deleteBtn = document.createElement("button");
+            deleteBtn.innerText = "🗑️";
+            deleteBtn.style.cssText = "padding: 2px 6px; background-color: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;";
+            deleteBtn.onclick = (e) => {
+              e.stopPropagation();
+              this.deleteReport(report.id);
+            };
+            reportHeader.appendChild(deleteBtn);
+          }
+
+          reportItem.appendChild(reportHeader);
+
+          const reportMessage = document.createElement("p");
+          reportMessage.innerText = report.message;
+          reportMessage.style.cssText = "margin: 5px 0 0 0; color: #333; font-size: 13px;";
+          reportItem.appendChild(reportMessage);
+
+          reportsSection.appendChild(reportItem);
+        });
+
+        container.appendChild(reportsSection);
+      }
+
+      // Submit Report Button
+      const reportButton = document.createElement("button");
+      reportButton.className = "report-button";
+      reportButton.innerText = "📝 Raportează o problemă";
+      reportButton.style.cssText = "margin-top: 10px; padding: 10px; background-color: #ffc107; color: #333; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold;";
+      reportButton.onmouseenter = () => { reportButton.style.backgroundColor = "#e0a800"; };
+      reportButton.onmouseleave = () => { reportButton.style.backgroundColor = "#ffc107"; };
+      reportButton.onclick = () => this.showReportDialog(locationId, name, lat, long);
+      container.appendChild(reportButton);
     
       const routeButton = document.createElement("button");
       routeButton.className = "route-button";
@@ -274,15 +365,23 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     // Închide popup-ul curent (dacă este deschis)
     this.view.popup.close();  
 
-    const startPoint = new Point({
-      latitude: 44.4268,
-      longitude: 26.1025
+    // Use user location if available, otherwise use default center
+    const startPoint = this.userLocation || new Point({
+      latitude: this.center[1],
+      longitude: this.center[0]
     });
   
     const endPoint = new Point({
       latitude: lat,
       longitude: long
     });
+
+    // Show message about starting point
+    if (this.userLocation) {
+      console.log("Creating route from your current location");
+    } else {
+      alert("Pentru a folosi locația ta curentă, apasă butonul de locație din colțul stânga-sus!");
+    }
   
     this.calculateRoute([startPoint, endPoint]);
   }
@@ -408,24 +507,116 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     }
   }
 
+  addLocationButton() {
+    // Create Locate widget for user location
+    this.locateWidget = new Locate({
+      view: this.view,
+      useHeadingEnabled: false,
+      goToOverride: (view, options) => {
+        options.target.scale = 1500; // Zoom level when location is found
+        return view.goTo(options.target);
+      }
+    });
+
+    // Add the locate widget to the top left corner of the view
+    this.view.ui.add(this.locateWidget, {
+      position: "top-left",
+      index: 1
+    });
+
+    // Track user location when locate is successful
+    this.locateWidget.on("locate", (event) => {
+      this.userLocation = new Point({
+        latitude: event.position.coords.latitude,
+        longitude: event.position.coords.longitude
+      });
+      console.log("User location:", this.userLocation);
+    });
+
+    console.log("Location button added");
+  }
+
+  addSearchWidget() {
+    // Create Search widget - using includeDefaultSources which should work with API key set
+    const searchWidget = new Search({
+      view: this.view,
+      allPlaceholder: "Caută magazine, locații, adrese...",
+      popupEnabled: true,
+      resultGraphicEnabled: true,
+      includeDefaultSources: true
+    });
+
+    // Add the search widget to the top right corner
+    this.view.ui.add(searchWidget, {
+      position: "top-right",
+      index: 0
+    });
+
+    // When a search result is selected, add navigation action to popup
+    searchWidget.on("select-result", (event) => {
+      console.log("Search result selected:", event);
+      if (event.result && event.result.feature) {
+        const geometry = event.result.feature.geometry;
+        if (geometry.type === "point") {
+          const point = geometry as Point;
+          
+          // Create a proper PopupTemplate with navigation action
+          const existingTemplate = event.result.feature.popupTemplate;
+          const popupTemplate = new PopupTemplate({
+            title: existingTemplate?.title || event.result.name || "Locație",
+            content: existingTemplate?.content || event.result.name || "Rezultat căutare",
+            actions: [{
+              type: "button",
+              title: "Navighează aici",
+              id: "navigate-to-location",
+              className: "esri-icon-directions"
+            }]
+          });
+          event.result.feature.popupTemplate = popupTemplate;
+
+          // Set up the action handler
+          this.view.popup.on("trigger-action", (actionEvent) => {
+            if (actionEvent.action.id === "navigate-to-location") {
+              this.createRouteToLocation(point.latitude, point.longitude);
+            }
+          });
+        }
+      }
+    });
+
+    console.log("Search widget added with authentication via esriConfig.apiKey");
+  }
+
+  
+  createRouteToLocation(lat: number, long: number) {
+    // Close any open popup
+    this.view.popup.close();
+
+    // Use user location if available, otherwise use default center
+    const startPoint = this.userLocation || new Point({
+      latitude: this.center[1],
+      longitude: this.center[0]
+    });
+
+    const endPoint = new Point({
+      latitude: lat,
+      longitude: long
+    });
+
+    // Show message about starting point
+    if (this.userLocation) {
+      console.log("Creating route from your current location");
+    } else {
+      console.log("Creating route from map center (click location button to use your position)");
+    }
+
+    this.calculateRoute([startPoint, endPoint]);
+  }
+
   addFeatureLayers() {
-    this.trailheadsLayer = new FeatureLayer({
-      url: "https://services3.arcgis.com/GVgbJbqm8hXASVYi/arcgis/rest/services/Trailheads/FeatureServer/0",
-      outFields: ['*']
-    });
-    this.map.add(this.trailheadsLayer);
-
-    const trailsLayer = new FeatureLayer({
-      url: "https://services3.arcgis.com/GVgbJbqm8hXASVYi/arcgis/rest/services/Trails/FeatureServer/0"
-    });
-    this.map.add(trailsLayer, 0);
-
-    const parksLayer = new FeatureLayer({
-      url: "https://services3.arcgis.com/GVgbJbqm8hXASVYi/arcgis/rest/services/Parks_and_Open_Space/FeatureServer/0"
-    });
-    this.map.add(parksLayer, 0);
-
-    console.log("Feature layers added");
+    // Demo feature layers removed - they were causing errors and aren't needed for recycling app
+    // Only using graphics layers for recycling points
+    console.log("Graphics layers initialized (demo feature layers removed)");
   }
 
   addGraphicsLayer() {
@@ -579,26 +770,9 @@ export class EsriMapComponent implements OnInit, OnDestroy {
 
 
   addRouting() {
-    const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
-    this.view.on("click", (event) => {
-      this.view.hitTest(event).then((elem: esri.HitTestResult) => {
-        if (elem && elem.results && elem.results.length > 0) {
-          const point: esri.Point = elem.results.find(e => e.layer === this.trailheadsLayer)?.mapPoint;
-          if (point) {
-            console.log("get selected point: ", elem, point);
-            if (this.graphicsLayerUserPoints.graphics.length === 0) {
-              this.addPoint(point.latitude, point.longitude);
-            } else if (this.graphicsLayerUserPoints.graphics.length === 1) {
-              this.addPoint(point.latitude, point.longitude);
-              const points = Array.from(this.graphicsLayerUserPoints.graphics).map((graphic) => graphic.geometry as Point);
-              this.calculateRoute(points);
-            } else {
-              this.removePoints();
-            }
-          }
-        }
-      });
-    });
+    // Routing functionality available via popup buttons
+    // Click routing on demo layers disabled since they were removed
+    console.log("Routing available via popup buttons");
   }
 
   addPoint(lat: number, lng: number) {
@@ -650,18 +824,40 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       stops: new FeatureSet({
         features: points.map((point) => new Graphic({ geometry: point }))
       }),
-      returnDirections: true
+      returnDirections: true,
+      directionsLengthUnits: "kilometers"
     });
   
     try {
+      console.log("Calculating route from:", points[0], "to:", points[1]);
+      
       // Eliminăm toate rutele existente înainte de a crea una nouă
       this.graphicsLayerRoutes.removeAll(); 
 
+      // Use the route service with authentication
       const data = await route.solve(this.routeUrl, routeParams);
-      this.displayRoute(data);
+      
+      if (data && data.routeResults && data.routeResults.length > 0) {
+        console.log("Route calculated successfully");
+        this.displayRoute(data);
+      } else {
+        console.error("No route found");
+        alert("Nu s-a găsit nicio rută. Verifică dacă ambele locații sunt accesibile.");
+      }
     } catch (error) {
-      console.error("Error calculating route: ", error);
-      alert("Error calculating route");
+      console.error("Full error calculating route: ", error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
+      
+      // Check if it's an authentication error
+      const errorString = error.toString().toLowerCase();
+      if (errorString.includes('token') || errorString.includes('credentials') || errorString.includes('498') || errorString.includes('499')) {
+        console.error("Authentication failed. API key might be invalid or expired.");
+        alert("Serviciul de rutare necesită autentificare valabilă. Vă rugăm verificați dacă API key-ul este valid și are permisiunile necesare.");
+      } else if (errorString.includes('network') || errorString.includes('failed to fetch')) {
+        alert("Eroare de rețea. Verifică conexiunea la internet.");
+      } else {
+        alert("Eroare la calcularea rutei: " + (error.message || error.toString()));
+      }
     }
   }
 
@@ -738,15 +934,10 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     }
     this.isConnected = true;
     this.fbs.connectToDatabase();
-    this.fbs.getChangeFeedList().subscribe((items: IDatabaseItem[]) => {
-        console.log("list updated: ", items);
-        this.listItems = items;
-    });
-
-
-    this.subscriptionObj = this.fbs.getChangeFeedObject().subscribe((stat: IDatabaseItem) => {
-        console.log("object updated: ", stat);
-    });
+    
+    // Note: Removed subscriptions to list/obj that caused permission errors
+    // Only using puncteColectare for recycling points
+    console.log('Connected to Firebase - using puncteColectare for recycling points');
   }
 
   disconnectFirebase() {
@@ -764,5 +955,75 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     }
 
     this.disconnectFirebase();
+  }
+
+  logout() {
+    this.authService.logout();
+    this.router.navigate(['/login']);
+  }
+
+  goToHome() {
+    this.router.navigate(['/home']);
+  }
+
+  goToProfile() {
+    this.router.navigate(['/profile']);
+  }
+
+  showReportDialog(locationId: string, locationName: string, lat: number, long: number): void {
+    if (!this.currentUser) {
+      alert('Trebuie să fii autentificat pentru a raporta o problemă!');
+      return;
+    }
+
+    const message = prompt('Descrie problema (ex: "Reciclatorul nu funcționează astăzi"):');
+    
+    if (message && message.trim()) {
+      const report: IReport = {
+        locationId: locationId,
+        locationName: locationName,
+        message: message.trim(),
+        userEmail: this.currentUser.email,
+        userName: this.currentUser.username || this.currentUser.email.split('@')[0],
+        timestamp: Date.now(),
+        latitude: lat,
+        longitude: long
+      };
+
+      this.fbs.addReport(report).then(() => {
+        alert('Raportul a fost trimis cu succes!');
+        // Refresh the popup to show new report
+        if (this.view && this.view.popup) {
+          this.view.popup.close();
+          setTimeout(() => {
+            this.view.popup.open({
+              location: new Point({ latitude: lat, longitude: long })
+            });
+          }, 300);
+        }
+      }).catch(error => {
+        console.error('Error submitting report:', error);
+        alert('Eroare la trimiterea raportului. Încearcă din nou.');
+      });
+    }
+  }
+
+  deleteReport(reportId: string): void {
+    if (confirm('Sigur vrei să ștergi acest raport?')) {
+      this.fbs.deleteReport(reportId).then(() => {
+        alert('Raportul a fost șters!');
+        // Refresh popup
+        if (this.view && this.view.popup) {
+          const location = this.view.popup.location;
+          this.view.popup.close();
+          setTimeout(() => {
+            this.view.popup.open({ location: location });
+          }, 300);
+        }
+      }).catch(error => {
+        console.error('Error deleting report:', error);
+        alert('Eroare la ștergerea raportului.');
+      });
+    }
   }
 }

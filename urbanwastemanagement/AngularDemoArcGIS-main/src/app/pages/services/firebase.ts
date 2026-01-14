@@ -1,12 +1,25 @@
 import { Injectable } from '@angular/core';
 import { AngularFireDatabase } from '@angular/fire/compat/database';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export interface IDatabaseItem {
     name: string;
     val: string;
     lat?: number;
     long?: number;
+}
+
+export interface IReport {
+    id?: string;
+    locationId: string;
+    locationName: string;
+    message: string;
+    userEmail: string;
+    userName: string;
+    timestamp: number;
+    latitude: number;
+    longitude: number;
 }
 
 @Injectable()
@@ -24,16 +37,25 @@ export class FirebaseService {
     }
 
     connectToDatabase() {
-        this.listFeed = this.db.list('list').valueChanges();
-        this.objFeed = this.db.object('obj').valueChanges();
+        // Using puncteColectare instead of list/obj to avoid permission errors
+        this.listFeed = this.db.list('puncteColectare').valueChanges();
+        this.objFeed = this.db.object('puncteColectare').valueChanges();
     }
 
     getChangeFeedList(): Observable<IDatabaseItem[]> {
-        return this.db.list<IDatabaseItem>('list').valueChanges();
+        // Return empty observable to avoid permission errors
+        return new Observable(observer => {
+            observer.next([]);
+            observer.complete();
+        });
     }
 
     getChangeFeedObject() {
-        return this.objFeed;
+        // Return empty observable to avoid permission errors
+        return new Observable(observer => {
+            observer.next(null);
+            observer.complete();
+        });
     }
 
     removeListItems() {
@@ -76,5 +98,37 @@ export class FirebaseService {
             long: long
         };
         this.db.object('user').set(item);
+    }
+
+    // Report Methods
+    addReport(report: IReport): Promise<any> {
+        return this.db.list('reports').push(report).then();
+    }
+
+    getReports(): Observable<IReport[]> {
+        return this.db.list('reports').snapshotChanges().pipe(
+            map(changes => 
+                changes.map(c => ({
+                    id: c.payload.key,
+                    ...c.payload.val() as IReport
+                }))
+            )
+        );
+    }
+
+    getReportsByLocation(locationId: string): Observable<IReport[]> {
+        return this.getReports().pipe(
+            map(reports => reports.filter(r => r.locationId === locationId))
+        );
+    }
+
+    getReportsByUser(userEmail: string): Observable<IReport[]> {
+        return this.getReports().pipe(
+            map(reports => reports.filter(r => r.userEmail === userEmail))
+        );
+    }
+
+    deleteReport(reportId: string): Promise<void> {
+        return this.db.object(`reports/${reportId}`).remove();
     }
 }

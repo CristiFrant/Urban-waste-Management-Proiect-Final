@@ -1,39 +1,213 @@
-<!-- Pagina de Rangs -->
-<div class="rangs-container" *ngIf="profile; else loading">
-  <div class="rangs-header">
-    <label for="rang">Rang: </label>
-    <span id="rang">{{ profile.rankName }}</span>
-  </div>
-
-  <div class="rangs-details">
-    <div class="rangs-avatar">
-      <img [src]="profile.rankUrl" alt="Avatar" class="avatar-image" />
-    </div>
-    <div class="rangs-item">
-      <label for="username">Username:</label>
-      <input type="text" id="username" [(ngModel)]="profile.username" [disabled]="!isEditing" />
-    </div>
-
-    <div class="rangs-item">
-      <label for="email">Email:</label>
-      <input type="email" id="email" [(ngModel)]="profile.email" [disabled]="!isEditing" />
-    </div>
-    <div class="rangs-item">
-      <label for="phone">Phone:</label>
-      <input type="tel" id="phone" [(ngModel)]="profile.phone" [disabled]="!isEditing" />
-    </div>
-    <div class="rangs-item">
-      <label for="visits">Visits: </label>
-      <span id="visits">{{ profile.counter }}</span>
+<!-- Pagina de Profil -->
+<div class="profile-container" *ngIf="profile; else loading">
+  <!-- Header with navigation -->
+  <div class="profile-header">
+    <h2>Profilul Meu</h2>
+    <div class="header-actions">
+      <button (click)="goToHome()" *ngIf="profile.role === 'admin'" class="nav-button">Administrare</button>
+      <button (click)="goToMap()" class="nav-button">Hartă</button>
+      <button (click)="logout()" class="logout-button">Deconectează-te</button>
     </div>
   </div>
 
-  <div class="rangs-actions">
-    <button (click)="editProfile()">Edit Rangs</button>
-    <button (click)="saveProfile()" [disabled]="!isEditing">Save Rangs</button>
+  <!-- Rank Section -->
+  <div class="rank-section">
+    <div class="rank-avatar">
+      <img [src]="profile.rankUrl" alt="Rank Badge" class="avatar-image" />
+    </div>
+    <div class="rank-info">
+      <h3>{{ profile.rankName }}</h3>
+      <p class="visits-count">
+        <span class="visits-number">{{ profile.counter }}</span> locații vizitate
+      </p>
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="(profile.counter / 60) * 100"></div>
+      </div>
+      <p class="progress-text">{{ 60 - profile.counter > 0 ? (60 - profile.counter) + ' vizite până la Master Recycler' : 'Master Recycler!' }}</p>
+    </div>
+  </div>
+
+  <!-- Account Information Section -->
+  <div class="info-section">
+    <h3>Informații Cont</h3>
+    
+    <!-- Success/Error Messages -->
+    <div class="message success-message" *ngIf="saveSuccess">{{ saveSuccess }}</div>
+    <div class="message error-message" *ngIf="saveError">{{ saveError }}</div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <label for="email"><i class="icon">✉</i> Email</label>
+        <input type="email" id="email" [(ngModel)]="profile.email" disabled />
+        <small>Email-ul nu poate fi modificat</small>
+      </div>
+
+      <div class="info-item">
+        <label for="role"><i class="icon">👤</i> Rol</label>
+        <input type="text" id="role" [value]="profile.role === 'admin' ? 'Administrator' : 'Utilizator'" disabled />
+      </div>
+
+      <div class="info-item">
+        <label for="username"><i class="icon">👨</i> Nume Utilizator</label>
+        <input type="text" id="username" [(ngModel)]="profile.username" [disabled]="!isEditing" />
+      </div>
+
+      <div class="info-item">
+        <label for="phone"><i class="icon">📱</i> Telefon</label>
+        <input type="tel" id="phone" [(ngModel)]="profile.phone" [disabled]="!isEditing" />
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <button *ngIf="!isEditing" (click)="editProfile()" class="btn-primary">
+        <i class="icon">✏</i> Editează Profilul
+      </button>
+      <button *ngIf="isEditing" (click)="saveProfile()" class="btn-success">
+        <i class="icon">💾</i> Salvează Modificările
+      </button>
+      <button *ngIf="isEditing" (click)="cancelEdit()" class="btn-secondary">
+        <i class="icon">✖</i> Anulează
+      </button>
+    </div>
+  </div>
+
+  <!-- Password Change Section -->
+  <div class="info-section">
+    <h3>Securitate</h3>
+    
+    <button (click)="togglePasswordChange()" class="btn-password" *ngIf="!isChangingPassword">
+      <i class="icon">🔒</i> Schimbă Parola
+    </button>
+
+    <div class="password-change-form" *ngIf="isChangingPassword">
+      <!-- Password Messages -->
+      <div class="message success-message" *ngIf="passwordSuccess">{{ passwordSuccess }}</div>
+      <div class="message error-message" *ngIf="passwordError">{{ passwordError }}</div>
+
+      <div class="info-item">
+        <label for="currentPassword">Parola Curentă</label>
+        <input type="password" id="currentPassword" [(ngModel)]="passwordData.currentPassword" placeholder="Introdu parola curentă" />
+      </div>
+
+      <div class="info-item">
+        <label for="newPassword">Parolă Nouă</label>
+        <input type="password" id="newPassword" [(ngModel)]="passwordData.newPassword" placeholder="Introdu noua parolă (min. 6 caractere)" />
+      </div>
+
+      <div class="info-item">
+        <label for="confirmPassword">Confirmă Parola Nouă</label>
+        <input type="password" id="confirmPassword" [(ngModel)]="passwordData.confirmPassword" placeholder="Confirmă noua parolă" />
+      </div>
+
+      <div class="action-buttons">
+        <button (click)="changePassword()" class="btn-success">
+          <i class="icon">💾</i> Salvează Parola
+        </button>
+        <button (click)="cancelPasswordChange()" class="btn-secondary">
+          <i class="icon">✖</i> Anulează
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Support Section -->
+  <div class="info-section support-section">
+    <h3>Suport</h3>
+    <p>Ai întrebări sau probleme? Contactează echipa noastră de suport!</p>
+    <div class="support-info">
+      <div class="support-item">
+        <i class="icon big-icon">✉</i>
+        <div>
+          <strong>Email Suport</strong>
+          <p>{{ supportEmail }}</p>
+        </div>
+      </div>
+    </div>
+    <button (click)="contactSupport()" class="btn-support">
+      <i class="icon">📧</i> Contactează Suportul
+    </button>
+    <small>* Se va deschide aplicația de email cu template pre-completat</small>
+  </div>
+
+  <!-- Achievement Badges Info -->
+  <div class="info-section achievements-section">
+    <h3>Sistem de Ranguri</h3>
+    <div class="achievements-grid">
+      <div class="achievement-card" [class.achieved]="profile.counter >= 0">
+        <div class="achievement-icon">🌱</div>
+        <div class="achievement-info">
+          <strong>Noobie</strong>
+          <p>0-2 vizite</p>
+        </div>
+      </div>
+      <div class="achievement-card" [class.achieved]="profile.counter >= 3">
+        <div class="achievement-icon">🌿</div>
+        <div class="achievement-info">
+          <strong>Beginner</strong>
+          <p>3-9 vizite</p>
+        </div>
+      </div>
+      <div class="achievement-card" [class.achieved]="profile.counter >= 10">
+        <div class="achievement-icon">🍀</div>
+        <div class="achievement-info">
+          <strong>Medium</strong>
+          <p>10-19 vizite</p>
+        </div>
+      </div>
+      <div class="achievement-card" [class.achieved]="profile.counter >= 20">
+        <div class="achievement-icon">🌳</div>
+        <div class="achievement-info">
+          <strong>Advanced</strong>
+          <p>20-39 vizite</p>
+        </div>
+      </div>
+      <div class="achievement-card" [class.achieved]="profile.counter >= 40">
+        <div class="achievement-icon">♻</div>
+        <div class="achievement-info">
+          <strong>The Recycler</strong>
+          <p>40-59 vizite</p>
+        </div>
+      </div>
+      <div class="achievement-card" [class.achieved]="profile.counter >= 60">
+        <div class="achievement-icon">🏆</div>
+        <div class="achievement-info">
+          <strong>Master Recycler</strong>
+          <p>60+ vizite</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Reports Section -->
+  <div class="info-section" *ngIf="userReports.length > 0">
+    <h3>Rapoartele Mele</h3>
+    <p>Aici poți vedea toate rapoartele pe care le-ai trimis despre punctele de colectare.</p>
+    
+    <div class="reports-list">
+      <div class="report-card" *ngFor="let report of userReports">
+        <div class="report-header">
+          <div class="report-location">
+            <strong>📍 {{ report.locationName }}</strong>
+            <small>{{ formatDate(report.timestamp) }}</small>
+          </div>
+          <button (click)="deleteUserReport(report.id)" class="btn-delete-small">
+            🗑️ Șterge
+          </button>
+        </div>
+        <div class="report-message">
+          {{ report.message }}
+        </div>
+        <div class="report-footer">
+          <small>📌 Lat: {{ report.latitude.toFixed(4) }}, Long: {{ report.longitude.toFixed(4) }}</small>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <ng-template #loading>
-  <p style="text-align: center;">Se încarcă datele...</p>
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <p>Se încarcă datele...</p>
+  </div>
 </ng-template>

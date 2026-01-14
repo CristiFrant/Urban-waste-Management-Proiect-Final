@@ -1,5 +1,10 @@
 <div class="waste-management-container">
-    <h3>Gestionează Punctele de Colectare</h3>
+    <div class="header-bar">
+        <h3>Gestionește Punctele de Colectare</h3>
+        <div class="header-actions">
+            <button (click)="goToMap()" class="nav-button">Harta</button>            <button (click)="goToProfile()" class="nav-button">Profil</button>            <button (click)="logout()" class="logout-button">Deconectează-te</button>
+        </div>
+    </div>
 
     <!-- Conectare Firebase -->
     <div class="firebase-connection" *ngIf="!isConnected">
@@ -8,10 +13,32 @@
 
     <!-- Secțiunea activă după conectare -->
     <div class="content" *ngIf="isConnected">
+        <!-- Secțiunea pentru supermarket-uri -->
+        <div class="supermarket-section">
+            <h4>Gestionare Puncte de Colectare</h4>
+            <div class="supermarket-actions">
+                <button (click)="searchSupermarkets()" [disabled]="isSearching" class="search-button">
+                    {{ isSearching ? 'Se caută...' : 'Caută Puncte de Colectare' }}
+                </button>
+                <button (click)="downloadSupermarketsCSV()" class="download-button">
+                    Descarcă CSV Puncte Colectare
+                </button>
+                <button (click)="addSupermarketsToFirebase()" class="add-button">
+                    Adaugă Puncte de Colectare în Firebase
+                </button>
+            </div>
+            <div *ngIf="supermarketData.length > 0" class="supermarket-info">
+                <p>🏪 S-au găsit <strong>{{ supermarketData.length }}</strong> puncte de colectare</p>
+            </div>
+        </div>
+
+        <hr style="margin: 20px 0; border: 1px solid #ddd;">
+
+        <!-- Secțiunea existentă pentru puncte de colectare -->
+        <h4>Gestionare Puncte de Colectare</h4>
         <div class="actions">
             <label for="csv-upload" class="file-upload-label">Încarcă fișier CSV:</label>
-            <input id="csv-upload" type="file" accept=".csv" (change)="loadCSV($event)" />
-            
+            <input type="file" (change)="loadCSV($event)" accept=".csv">            
             <button (click)="addListItem()">Adaugă Punct</button>
             <button (click)="addAllRemainingItems()">Adaugă Toate Datele Rămase</button>
             <button (click)="setCustomIndex()">Setează Index</button>

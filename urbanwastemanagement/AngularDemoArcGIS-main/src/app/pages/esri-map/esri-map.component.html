@@ -1,5 +1,12 @@
 <!-- Main container to hold the map and sidebar -->
 <div class="container">
+    <!-- Header with navigation -->
+    <div class="map-header">
+        <button (click)="goToHome()" class="nav-button">Administrare</button>
+        <button (click)="goToProfile()" class="nav-button">Profil</button>
+        <button (click)="logout()" class="logout-button">Deconectează-te</button>
+    </div>
+    
     <!-- The DIV that will contain the map -->
     <div #mapViewNode class="map-view"></div>
 </div>

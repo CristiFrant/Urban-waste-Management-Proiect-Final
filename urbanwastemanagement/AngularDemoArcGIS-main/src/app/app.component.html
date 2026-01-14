@@ -1,10 +1,10 @@
-<nav class="navbar" *ngIf="isAuthenticated">
+<nav class="navbar">
   <div class="nav-links">
-    <a routerLink="/home" *ngIf="authService.currentUser | async as user; else noUser" [hidden]="user?.role !== 'admin'">Home</a>
+    <a routerLink="/home">Home</a>
     <a routerLink="/map">Map</a>
-    <a routerLink="/profile" *ngIf="authService.currentUser | async as user; else noUser" [hidden]="user?.role === 'admin'">Profile</a>
+    <!-- <a routerLink="/profile" *ngIf="authService.currentUser | async as user; else noUser" [hidden]="user?.role === 'admin'">Profile</a> -->
   </div>
-  <div class="nav-actions">
+  <div class="nav-actions" *ngIf="isAuthenticated">
     <button class="logout-btn" (click)="showLogoutPopup()">Logout</button>
   </div>
 </nav>
