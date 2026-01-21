@@ -966,6 +966,10 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.router.navigate(['/home']);
   }
 
+  goToDashboard() {
+    this.router.navigate(['/dashboard']);
+  }
+
   goToProfile() {
     this.router.navigate(['/profile']);
   }
@@ -990,8 +994,29 @@ export class EsriMapComponent implements OnInit, OnDestroy {
         longitude: long
       };
 
-      this.fbs.addReport(report).then(() => {
-        alert('Raportul a fost trimis cu succes!');
+      this.fbs.addReport(report).then(async () => {
+        alert('Raportul a fost trimis cu succes! +35 XP (15 XP report + 20 XP visit)');
+        
+        // Award XP for submitting report
+        await this.authService.addXP(
+          this.currentUser.email, 
+          15, 
+          'report', 
+          `Report at ${locationName}`
+        );
+
+        // Award XP for visiting location
+        await this.authService.addXP(
+          this.currentUser.email, 
+          20, 
+          'visit', 
+          `Visited ${locationName}`
+        );
+
+        // Update total reports and visits count
+        await this.authService.incrementTotalReports(this.currentUser.email);
+        await this.authService.incrementTotalVisits(this.currentUser.email);
+        
         // Refresh the popup to show new report
         if (this.view && this.view.popup) {
           this.view.popup.close();

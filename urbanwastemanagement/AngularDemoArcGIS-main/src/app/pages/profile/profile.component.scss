@@ -40,6 +40,16 @@
       background-color: #0056b3 !important;
       transform: translateY(-2px);
     }
+
+    &.dashboard-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      font-weight: 600;
+      
+      &:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%) !important;
+        transform: scale(1.05);
+      }
+    }
   }
 
   .logout-button {

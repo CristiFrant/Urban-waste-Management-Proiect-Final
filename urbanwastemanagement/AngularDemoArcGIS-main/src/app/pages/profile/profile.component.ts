@@ -212,6 +212,10 @@ export class ProfileComponent implements OnInit {
         this.router.navigate(['/map']);
     }
 
+    goToDashboard(): void {
+        this.router.navigate(['/dashboard']);
+    }
+
     goToHome(): void {
         this.router.navigate(['/home']);
     }

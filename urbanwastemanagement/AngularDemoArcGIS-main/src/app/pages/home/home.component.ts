@@ -394,6 +394,10 @@ export class HomeComponent implements OnInit, OnDestroy {
         this.router.navigate(['/map']);
     }
 
+    goToDashboard() {
+        this.router.navigate(['/dashboard']);
+    }
+
     goToProfile() {
         this.router.navigate(['/profile']);
     }

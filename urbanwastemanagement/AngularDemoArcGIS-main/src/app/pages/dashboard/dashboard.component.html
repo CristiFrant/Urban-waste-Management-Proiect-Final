@@ -1,0 +1,159 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>📊 Dashboard</h1>
+    <div class="header-buttons">
+      <button class="refresh-btn" (click)="refreshData()">🔄 Refresh</button>
+      <button class="back-btn" routerLink="/home">← Back to Home</button>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading">Loading statistics...</div>
+
+  <div *ngIf="!loading" class="dashboard-content">
+    <!-- User Stats Section -->
+    <div class="stats-grid" *ngIf="user">
+      <div class="stat-card user-profile">
+        <div class="stat-icon">👤</div>
+        <h3>{{ user.username }}</h3>
+        <div class="rank-badge">{{ getRankName() }}</div>
+        <div class="level-info">
+          <span class="level">Level {{ user.level || 0 }}</span>
+          <span class="xp">{{ user.xp || 0 }} XP</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" [style.width.%]="getProgressPercentage()"></div>
+        </div>
+        <p class="next-level">{{ getXPToNextLevel() }} XP to next level</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">🔥</div>
+        <h3>Login Streak</h3>
+        <p class="stat-value">{{ user.loginStreak || 0 }} days</p>
+        <p class="stat-label">Longest: {{ user.longestStreak || 0 }} days</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">📝</div>
+        <h3>Total Reports</h3>
+        <p class="stat-value">{{ user.totalReports || 0 }}</p>
+        <p class="stat-label">Reports submitted</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">📍</div>
+        <h3>Location Visits</h3>
+        <p class="stat-value">{{ user.totalVisits || 0 }}</p>
+        <p class="stat-label">Locations visited</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <h3>Activities</h3>
+        <p class="stat-value">{{ user.activityLog?.length || 0 }}</p>
+        <p class="stat-label">Total actions</p>
+      </div>
+    </div>
+
+    <!-- Global Stats Section -->
+    <div class="stats-grid global-stats" *ngIf="globalStats">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <h3>Total Users</h3>
+        <p class="stat-value">{{ globalStats.totalUsers }}</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <h3>Total Reports</h3>
+        <p class="stat-value">{{ globalStats.totalReports }}</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">📍</div>
+        <h3>Total Visits</h3>
+        <p class="stat-value">{{ globalStats.totalVisits }}</p>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <h3>Total XP</h3>
+        <p class="stat-value">{{ globalStats.totalXP }}</p>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <canvas baseChart
+          [data]="xpChartData"
+          [options]="xpChartOptions"
+          [type]="xpChartType">
+        </canvas>
+      </div>
+
+      <div class="chart-card">
+        <canvas baseChart
+          [data]="materialsChartData"
+          [options]="materialsChartOptions"
+          [type]="materialsChartType">
+        </canvas>
+      </div>
+
+      <div class="chart-card">
+        <canvas baseChart
+          [data]="weeklyChartData"
+          [options]="weeklyChartOptions"
+          [type]="weeklyChartType">
+        </canvas>
+      </div>
+
+      <div class="chart-card">
+        <canvas baseChart
+          [data]="monthlyChartData"
+          [options]="monthlyChartOptions"
+          [type]="monthlyChartType">
+        </canvas>
+      </div>
+    </div>
+
+    <!-- Leaderboard Section -->
+    <div class="leaderboard-section" *ngIf="globalStats?.topUsers">
+      <h2>🏆 Top 5 Users</h2>
+      <div class="leaderboard">
+        <div class="leaderboard-item" *ngFor="let topUser of globalStats.topUsers; let i = index">
+          <span class="rank">
+            <span *ngIf="i === 0" class="medal">🥇</span>
+            <span *ngIf="i === 1" class="medal">🥈</span>
+            <span *ngIf="i === 2" class="medal">🥉</span>
+            <span *ngIf="i > 2">{{ i + 1 }}</span>
+          </span>
+          <span class="username">{{ topUser.username }}</span>
+          <span class="level">Lvl {{ topUser.level }}</span>
+          <span class="xp">{{ topUser.xp }} XP</span>
+          <span class="reports">{{ topUser.totalReports }} reports</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity Section -->
+    <div class="activity-section" *ngIf="user?.activityLog">
+      <h2>📋 Recent Activity</h2>
+      <div class="activity-list">
+        <div class="activity-item" *ngFor="let activity of user.activityLog.slice(-10).reverse()">
+          <span class="activity-icon" [ngSwitch]="activity.type">
+            <span *ngSwitchCase="'login'">🔐</span>
+            <span *ngSwitchCase="'visit'">📍</span>
+            <span *ngSwitchCase="'report'">📝</span>
+            <span *ngSwitchCase="'recycle'">♻️</span>
+            <span *ngSwitchDefault>✓</span>
+          </span>
+          <span class="activity-type">{{ activity.type | titlecase }}</span>
+          <span class="activity-details">{{ activity.details }}</span>
+          <span class="activity-xp">+{{ activity.xpGained }} XP</span>
+          <span class="activity-date">{{ formatDate(activity.timestamp) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

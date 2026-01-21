@@ -27,9 +27,11 @@ import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
 import { AngularFireAuthModule } from '@angular/fire/compat/auth';
 import { AuthService } from "./pages/services/auth.service";
 import { FormsModule } from "@angular/forms";
+import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { NgChartsModule } from 'ng2-charts';
 
 @NgModule({
-  declarations: [AppComponent, EsriMapComponent, HomeComponent, ProfileComponent, LoginComponent, RegisterComponent],
+  declarations: [AppComponent, EsriMapComponent, HomeComponent, ProfileComponent, LoginComponent, RegisterComponent, DashboardComponent],
   imports: [
     BrowserModule,
     AppRoutingModule,
@@ -42,7 +44,8 @@ import { FormsModule } from "@angular/forms";
     AngularFireModule.initializeApp(environment.firebase, 'AngularDemoFirebase'),
     MatTableModule,
     AngularFireDatabaseModule,
-    FormsModule
+    FormsModule,
+    NgChartsModule
   ],
   providers: [
     FirebaseService,
