@@ -44,52 +44,82 @@ export class ProfileComponent implements OnInit {
         private firebaseService: FirebaseService
     ) {}
 
-    ngOnInit(): void {
-        // Initializare date profil
-        this.authService.currentUser.subscribe((user) => {
+    async ngOnInit(): Promise<void> {
+        // Subscribe to current user AND refresh from Firebase
+        this.authService.currentUser.subscribe(async (user) => {
             if (user) {
-                this.user = user;
-                this.profile.username = user.username || '';
-                this.profile.phone = user.phone || '';
-                this.profile.email = user.email || '';
-                this.profile.password = user.password || '';
-                this.profile.role = user.role || 'customer';
-                this.profile.counter = user.visits || 0;
+                // Refresh user data from Firebase to get latest XP/stats
+                try {
+                    this.user = await this.authService.getUserByEmail(user.email);
+                    
+                    if (this.user) {
+                        // Update profile with fresh data
+                        this.profile.username = this.user.username || '';
+                        this.profile.phone = this.user.phone || '';
+                        this.profile.email = this.user.email || '';
+                        this.profile.password = this.user.password || '';
+                        this.profile.role = this.user.role || 'customer';
+                        this.profile.counter = this.user.totalVisits || this.user.visits || 0;
 
-                this.updateRank(user.visits || 0);
+                        console.log('Profile data refreshed from Firebase:', {
+                            email: this.user.email,
+                            xp: this.user.xp,
+                            level: this.user.level,
+                            totalVisits: this.user.totalVisits,
+                            totalReports: this.user.totalReports
+                        });
 
-                // Load user's reports
-                this.firebaseService.getReportsByUser(user.email).subscribe(reports => {
-                    this.userReports = reports.sort((a, b) => b.timestamp - a.timestamp);
-                });
+                        this.updateRank(this.user.level || 0);
+
+                        // Load user's reports
+                        this.firebaseService.getReportsByUser(this.user.email).subscribe(reports => {
+                            this.userReports = reports.sort((a, b) => b.timestamp - a.timestamp);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error refreshing user data:', error);
+                    // Fallback to cached user data
+                    this.user = user;
+                    this.profile.username = user.username || '';
+                    this.profile.phone = user.phone || '';
+                    this.profile.email = user.email || '';
+                    this.profile.password = user.password || '';
+                    this.profile.role = user.role || 'customer';
+                    this.profile.counter = user.totalVisits || user.visits || 0;
+                    this.updateRank(user.level || 0);
+                    
+                    this.firebaseService.getReportsByUser(user.email).subscribe(reports => {
+                        this.userReports = reports.sort((a, b) => b.timestamp - a.timestamp);
+                    });
+                }
             }
         });
     }
 
-    updateRank(visitedLocations: number): void {
-        if (visitedLocations < 3) {
+    updateRank(level: number): void {
+        // Rank based on XP level (same as dashboard)
+        if (level < 5) {
             this.profile.rankName = 'Noobie';
             this.profile.rankUrl = 'assets/images/noob.png';
-
         } 
-        else if (visitedLocations < 10) 
+        else if (level < 10) 
         {
-            this.profile.rankName = 'Beginner';
+            this.profile.rankName = 'Rookie';
             this.profile.rankUrl = 'assets/images/entry.png';
         } 
-        else if (visitedLocations < 20) 
+        else if (level < 20) 
         {
-            this.profile.rankName = 'Medium';
+            this.profile.rankName = 'Apprentice';
             this.profile.rankUrl = 'assets/images/medium.png';
         }
-        else if (visitedLocations < 40) 
+        else if (level < 30) 
         {
-            this.profile.rankName = 'Advanced';
+            this.profile.rankName = 'Expert';
             this.profile.rankUrl = 'assets/images/entry.png';
         } 
-        else if (visitedLocations < 60) 
+        else if (level < 50) 
         {
-            this.profile.rankName = 'The Recycler';
+            this.profile.rankName = 'Pro';
             this.profile.rankUrl = 'assets/images/theRecycler.png';
         } 
         else 
@@ -97,6 +127,22 @@ export class ProfileComponent implements OnInit {
             this.profile.rankName = 'Master Recycler';
             this.profile.rankUrl = 'assets/images/boss.png';
         }
+    }
+
+    getXPToNextLevel(): number {
+        const currentLevel = this.user?.level || 0;
+        const currentXP = this.user?.xp || 0;
+        const nextLevelXP = (currentLevel + 1) * 100;
+        return nextLevelXP - currentXP;
+    }
+
+    getProgressPercentage(): number {
+        const currentLevel = this.user?.level || 0;
+        const currentXP = this.user?.xp || 0;
+        const currentLevelXP = currentLevel * 100;
+        const nextLevelXP = (currentLevel + 1) * 100;
+        const progress = ((currentXP - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100;
+        return Math.min(100, Math.max(0, progress));
     }
 
     editProfile(): void {

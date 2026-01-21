@@ -18,13 +18,34 @@
     </div>
     <div class="rank-info">
       <h3>{{ profile.rankName }}</h3>
-      <p class="visits-count">
-        <span class="visits-number">{{ profile.counter }}</span> locații vizitate
-      </p>
-      <div class="progress-bar">
-        <div class="progress-fill" [style.width.%]="(profile.counter / 60) * 100"></div>
+      
+      <!-- XP and Level Display -->
+      <div class="stats-row">
+        <div class="stat-item">
+          <span class="stat-label">Level:</span>
+          <span class="stat-value">{{ user?.level || 0 }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">XP:</span>
+          <span class="stat-value">{{ user?.xp || 0 }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Vizite:</span>
+          <span class="stat-value">{{ user?.totalVisits || 0 }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Rapoarte:</span>
+          <span class="stat-value">{{ user?.totalReports || 0 }}</span>
+        </div>
       </div>
-      <p class="progress-text">{{ 60 - profile.counter > 0 ? (60 - profile.counter) + ' vizite până la Master Recycler' : 'Master Recycler!' }}</p>
+      
+      <!-- XP Progress Bar -->
+      <div class="xp-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" [style.width.%]="getProgressPercentage()"></div>
+        </div>
+        <p class="progress-text">{{ getXPToNextLevel() }} XP până la nivelul {{ (user?.level || 0) + 1 }}</p>
+      </div>
     </div>
   </div>
 

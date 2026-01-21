@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { AuthService } from '../services/auth.service';
 import { User } from '../models/user.model';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
@@ -106,7 +106,10 @@ export class DashboardComponent implements OnInit {
   };
   monthlyChartType: ChartType = 'bar';
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.loadUserData();
@@ -131,6 +134,8 @@ export class DashboardComponent implements OnInit {
         this.user = await this.authService.getUserByEmail(authUser.email);
         if (this.user) {
           this.prepareCharts();
+          // Manually trigger change detection for Chart.js
+          this.cdr.detectChanges();
         }
       } catch (error) {
         console.error('Error loading user data:', error);
